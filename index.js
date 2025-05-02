@@ -881,3 +881,37 @@ async function watchAd(asset) {
         alert('Failed to watch ad.');
     }
 }
+
+const EnergyManagerABI = [
+    "function registerDevice(string memory deviceId) external",
+    "function consumeEnergy(string memory deviceId, uint256 amount) external",
+    "function getEnergyConsumed(string memory deviceId) external view returns (uint256)",
+    "event EnergyConsumed(string deviceId, uint256 amount)",
+    "event DeviceRegistered(string deviceId)"
+];
+
+const TokenManagerABI = [
+    "function transfer(string memory asset, address to, uint256 amount) external",
+    "function addToInsurance(string memory deviceId, uint256 amount) external",
+    "function getBalance(string memory asset) external view returns (uint256)",
+    "function mint(string memory asset, uint256 amount) external"
+];
+
+const EntertainmentManagerABI = [
+    "function playGame(string memory game, string memory mode) external",
+    "function watchAds() external",
+    "event GamePlayed(address indexed player, string game, string mode)",
+    "event AdWatched(address indexed viewer, uint256 reward)"
+];
+
+const FinanceManagerABI = [
+    "function deposit(uint256 amount) external",
+    "function withdraw(uint256 amount) external",
+    "function stake(string memory asset, uint256 amount) external",
+    "function farm(string memory asset, uint256 amount) external",
+    "function provideLiquidity(string memory asset, uint256 amount) external",
+    "function dualStake(string memory asset1, string memory asset2, uint256 amount) external",
+    "function lend(string memory asset, uint256 amount) external",
+    "function borrow(string memory asset, uint256 amount, uint256 collateral) external",
+    "function watchAd(string memory asset) external"
+];
