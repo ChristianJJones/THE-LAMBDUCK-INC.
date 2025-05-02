@@ -741,3 +741,39 @@ function watchAd(asset) {
     console.log(`Watching ad for ${asset}`);
     alert('Ad watched. 50% of revenue added to balance.');
 }
+
+const { ethers } = require('ethers'); // Add ethers.js to your project
+
+// Initialize Web3 provider (e.g., MetaMask)
+let provider;
+let signer;
+let energyManager;
+
+async function initWeb3() {
+    if (window.ethereum) {
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        signer = provider.getSigner();
+        const energyManagerAddress = "YOUR_ENERGY_MANAGER_ADDRESS";
+        const energyManagerABI = [/* ABI from EnergyManager.sol */];
+        energyManager = new ethers.Contract(energyManagerAddress, energyManagerABI, signer);
+    } else {
+        alert('Please install MetaMask to use this feature.');
+    }
+}
+
+// Update consume function to call EnergyManager.sol
+async function consume() {
+    await initWeb3();
+    const deviceId = prompt('Enter device ID:');
+    const amount = prompt('Enter energy amount to consume (kWh):');
+    try {
+        const tx = await energyManager.consumeEnergy(deviceId, ethers.utils.parseUnits(amount, 0));
+        await tx.wait();
+        alert('Energy consumed successfully!');
+    } catch (error) {
+        console.error(error);
+        alert('Failed to consume energy.');
+    }
+    showManageDevices();
+}
