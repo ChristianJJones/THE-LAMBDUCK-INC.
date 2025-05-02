@@ -16,12 +16,27 @@ let userData = {
 let devices = [];
 let isNewDevice = false;
 
+// Web3 and cross-chain variables
 let provider;
 let signer;
 let energyManager;
 let tokenManager;
 let entertainmentManager;
 let financeManager;
+let usdMediator;
+let instilledInteroperability;
+
+// Supported chains
+const supportedChains = ['Stellar', 'Binance', 'Ethereum', 'Arbitrum', 'Pi Network', 'Cronos'];
+let activeChain = 'Stellar'; // Default chain
+let chainProviders = {};
+
+// Mock Instilled Interoperability node rewards (100% allocated as revenue)
+let nodeRewards = 0;
+function allocateNodeRewards() {
+    console.log(`Instilled Interoperability Node Rewards: ${nodeRewards} allocated as revenue (100%)`);
+    // In a real implementation, this would distribute rewards to a revenue pool
+}
 
 window.onload = async () => {
     await Pi.init({ version: "2.0" });
@@ -33,12 +48,83 @@ window.onload = async () => {
     document.getElementById('sign-in-google').onclick = signInWithGoogle;
     document.getElementById('sign-in-apple').onclick = signInWithApple;
 
-    await initWeb3();
+    await initWeb3WithInteroperability();
 };
 
-async function initWeb3() {
-    if (window.ethereum) {
-        provider = new ethers.providers.Web3Provider(window.ethereum);
+async function initWeb3WithInteroperability() {
+    if (!window.ethereum) {
+        alert('Please install MetaMask to use this feature.');
+        return;
+    }
+
+    // Initialize Instilled Interoperability nodes (mocked for now)
+    instilledInteroperability = {
+        connectToChain: async (chain) => {
+            console.log(`Instilled Interoperability: Connecting to ${chain}...`);
+            // Simulate node connection providing energy, Wi-Fi, computational energy, data storage, etc.
+            nodeRewards += Math.random() * 10; // Simulate rewards generation
+            allocateNodeRewards();
+            return true;
+        },
+        disconnectFromChain: async (chain) => {
+            console.log(`Instilled Interoperability: Disconnecting from ${chain}...`);
+            // Nodes remain connected in the back-end for resource provision
+            nodeRewards += Math.random() * 5; // Continue generating rewards
+            allocateNodeRewards();
+            return true;
+        }
+    };
+
+    // Initialize USDMediator for cross-chain transactions (mocked for now)
+    usdMediator = {
+        mediateTransaction: async (fromChain, toChain, asset, amount) => {
+            console.log(`USDMediator: Mediating ${amount} ${asset} from ${fromChain} to ${toChain}`);
+            // Simulate asset conversion (e.g., USD to chain-native token)
+            return amount; // Return mediated amount
+        }
+    };
+
+    // Initialize providers for all supported chains
+    for (const chain of supportedChains) {
+        await instilledInteroperability.connectToChain(chain);
+        if (chain === 'Ethereum' || chain === 'Arbitrum') {
+            // Use MetaMask for Ethereum-compatible chains
+            chainProviders[chain] = new ethers.providers.Web3Provider(window.ethereum);
+        } else if (chain === 'Binance') {
+            // Mock Binance Smart Chain provider
+            chainProviders[chain] = new ethers.providers.JsonRpcProvider('https://bsc-dataseed.binance.org/');
+        } else if (chain === 'Cronos') {
+            // Mock Cronos provider
+            chainProviders[chain] = new ethers.providers.JsonRpcProvider('https://evm.cronos.org/');
+        } else if (chain === 'Pi Network') {
+            // Mock Pi Network provider
+            chainProviders[chain] = { provider: 'Pi Network SDK', custom: true };
+        } else if (chain === 'Stellar') {
+            // Mock Stellar provider
+            chainProviders[chain] = { provider: 'Stellar SDK', custom: true };
+        }
+    }
+
+    // Set default active chain (Stellar)
+    await setActiveChain('Stellar');
+}
+
+async function setActiveChain(chain) {
+    if (!supportedChains.includes(chain)) {
+        alert('Unsupported chain selected.');
+        return;
+    }
+
+    // Disconnect from the previous chain (front-end only, nodes remain connected in back-end)
+    if (activeChain !== chain) {
+        await instilledInteroperability.disconnectFromChain(activeChain);
+    }
+
+    activeChain = chain;
+
+    // Initialize provider and signer for the active chain
+    if (chain === 'Ethereum' || chain === 'Arbitrum' || chain === 'Binance' || chain === 'Cronos') {
+        provider = chainProviders[chain];
         await provider.send("eth_requestAccounts", []);
         signer = provider.getSigner();
 
@@ -52,9 +138,15 @@ async function initWeb3() {
         tokenManager = new ethers.Contract(tokenManagerAddress, TokenManagerABI, signer);
         entertainmentManager = new ethers.Contract(entertainmentManagerAddress, EntertainmentManagerABI, signer);
         financeManager = new ethers.Contract(financeManagerAddress, FinanceManagerABI, signer);
-    } else {
-        alert('Please install MetaMask to use this feature.');
+    } else if (chain === 'Pi Network') {
+        provider = chainProviders[chain];
+        signer = null; // Pi Network uses a different authentication mechanism
+    } else if (chain === 'Stellar') {
+        provider = chainProviders[chain];
+        signer = null; // Stellar uses a different signing mechanism
     }
+
+    console.log(`Active chain set to ${activeChain}`);
 }
 
 function showLoginModal() {
@@ -172,8 +264,15 @@ async function updateBalances() {
     if (!currentUser) return;
     for (const asset of supportedAssets) {
         try {
-            const balance = await tokenManager.getBalance(asset);
-            document.getElementById(`${asset.toLowerCase()}-balance`)?.textContent = ethers.utils.formatUnits(balance, 18);
+            let balance;
+            if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+                // Mock balance fetch for non-EVM chains
+                balance = Math.random() * 100;
+            } else {
+                balance = await tokenManager.getBalance(asset);
+                balance = ethers.utils.formatUnits(balance, 18);
+            }
+            document.getElementById(`${asset.toLowerCase()}-balance`)?.textContent = balance.toFixed(2);
         } catch (error) {
             console.error(`Error fetching balance for ${asset}:`, error);
         }
@@ -190,7 +289,11 @@ async function connectDevice() {
     localStorage.setItem('deviceId', deviceId);
 
     try {
-        await energyManager.registerDevice(deviceId);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Registering device ${deviceId} on ${activeChain}`);
+        } else {
+            await energyManager.registerDevice(deviceId);
+        }
     } catch (error) {
         console.error('Error registering device:', error);
         alert('Failed to register device.');
@@ -203,7 +306,7 @@ async function connectDevice() {
         document.getElementById('connect-device').onclick = showManageDevices;
     }, 2000);
 
-    devices.push({ id: deviceId, name: 'Device ' + devices.length + 1 });
+    devices.push({ id: deviceId, name: 'Device ' + devices.length + 1, chain: activeChain });
 }
 
 function generateDeviceId() {
@@ -222,6 +325,19 @@ function showManageDevices() {
                 <div class="device">
                     <p>Device Name: ${device.name}</p>
                     <p>IMEI: ${device.id}</p>
+                    <p>Active Chain: ${device.chain}</p>
+                    <div class="chain-selector">
+                        <label>Select Chain:</label>
+                        ${supportedChains.map(chain => `
+                            <div class="chain-option">
+                                <span>${chain}</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="chain-${chain}-${device.id}" ${device.chain === chain ? 'checked' : ''} onchange="changeChain('${device.id}', '${chain}')">
+                                    <span class="slider ${device.chain === chain ? 'active' : ''}"></span>
+                                </label>
+                            </div>
+                        `).join('')}
+                    </div>
                     <input type="number" placeholder="Input $ZPE" id="zpe-${device.id}">
                     <button onclick="consumeZPE('${device.id}')">Consume Zeropoint</button>
                     <input type="number" placeholder="Input $ZPWP" id="zpwp-${device.id}">
@@ -232,9 +348,6 @@ function showManageDevices() {
                     <button onclick="consumeToDevice('ZPE', '${device.id}')">Consume To Device</button>
                     <input type="number" placeholder="Input $ZPE" id="zpe-insurance-${device.id}">
                     <button onclick="addToInsurance('${device.id}')">Add to Insurance Balance</button>
-                    <select id="chain-${device.id}">
-                        <option value="default">Default</option>
-                    </select>
                     <label>Insure Connected Item: <input type="checkbox" id="insure-${device.id}" disabled></label>
                     <button onclick="removeDevice('${device.id}')">Remove Device</button>
                 </div>
@@ -247,12 +360,49 @@ function showManageDevices() {
     modal.style.display = 'flex';
 }
 
+async function changeChain(deviceId, newChain) {
+    const device = devices.find(d => d.id === deviceId);
+    if (!device) return;
+
+    if (device.chain === newChain) return; // Already on this chain
+
+    const pin = prompt(`Enter 4-digit PIN to switch to ${newChain}:`);
+    if (pin !== userPin) {
+        alert('Invalid PIN.');
+        document.getElementById(`chain-${newChain}-${deviceId}`).checked = false;
+        document.getElementById(`chain-${device.chain}-${deviceId}`).checked = true;
+        return;
+    }
+
+    // Update device chain
+    device.chain = newChain;
+    await setActiveChain(newChain);
+
+    // Update UI to reflect the active chain
+    supportedChains.forEach(chain => {
+        const slider = document.querySelector(`#chain-${chain}-${deviceId} + .slider`);
+        if (chain === newChain) {
+            slider.classList.add('active');
+        } else {
+            slider.classList.remove('active');
+            document.getElementById(`chain-${chain}-${deviceId}`).checked = false;
+        }
+    });
+
+    showManageDevices();
+}
+
 async function consumeZPE(deviceId) {
-    const amount = document.getElementById(`zpe-${device.id}`).value;
+    const amount = document.getElementById(`zpe-${deviceId}`).value;
     try {
-        const tx = await energyManager.consumeEnergy(deviceId, ethers.utils.parseUnits(amount, 0));
-        await tx.wait();
-        alert('ZPE consumed successfully!');
+        const mediatedAmount = await usdMediator.mediateTransaction('Stellar', activeChain, 'ZPE', amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Consuming ${mediatedAmount} ZPE on ${activeChain}`);
+        } else {
+            const tx = await energyManager.consumeEnergy(deviceId, ethers.utils.parseUnits(mediatedAmount, 0));
+            await tx.wait();
+            alert('ZPE consumed successfully!');
+        }
     } catch (error) {
         console.error(error);
         alert('Failed to consume ZPE.');
@@ -260,11 +410,16 @@ async function consumeZPE(deviceId) {
 }
 
 async function consumeZPWP(deviceId) {
-    const amount = document.getElementById(`zpwp-${device.id}`).value;
+    const amount = document.getElementById(`zpwp-${deviceId}`).value;
     try {
-        const tx = await energyManager.consumeEnergy(deviceId, ethers.utils.parseUnits(amount, 0));
-        await tx.wait();
-        alert('ZPWP consumed successfully!');
+        const mediatedAmount = await usdMediator.mediateTransaction('Stellar', activeChain, 'ZPWP', amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Consuming ${mediatedAmount} ZPWP on ${activeChain}`);
+        } else {
+            const tx = await energyManager.consumeEnergy(deviceId, ethers.utils.parseUnits(mediatedAmount, 0));
+            await tx.wait();
+            alert('ZPWP consumed successfully!');
+        }
     } catch (error) {
         console.error(error);
         alert('Failed to consume ZPWP.');
@@ -274,9 +429,14 @@ async function consumeZPWP(deviceId) {
 async function consumeToDevice(asset, deviceId) {
     const amount = document.getElementById(`${asset.toLowerCase()}-device-${deviceId}`).value;
     try {
-        const tx = await energyManager.consumeEnergy(deviceId, ethers.utils.parseUnits(amount, 0));
-        await tx.wait();
-        alert(`${asset} consumed successfully!`);
+        const mediatedAmount = await usdMediator.mediateTransaction('Stellar', activeChain, asset, amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Consuming ${mediatedAmount} ${asset} on ${activeChain}`);
+        } else {
+            const tx = await energyManager.consumeEnergy(deviceId, ethers.utils.parseUnits(mediatedAmount, 0));
+            await tx.wait();
+            alert(`${asset} consumed successfully!`);
+        }
     } catch (error) {
         console.error(error);
         alert(`Failed to consume ${asset}.`);
@@ -286,10 +446,15 @@ async function consumeToDevice(asset, deviceId) {
 async function addToInsurance(deviceId) {
     const amount = document.getElementById(`zpe-insurance-${deviceId}`).value;
     try {
-        const tx = await tokenManager.addToInsurance(deviceId, ethers.utils.parseUnits(amount, 18));
-        await tx.wait();
-        document.getElementById(`insure-${deviceId}`).checked = true;
-        alert('Added to insurance balance successfully!');
+        const mediatedAmount = await usdMediator.mediateTransaction('Stellar', activeChain, 'ZPE', amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Adding ${mediatedAmount} ZPE to insurance on ${activeChain}`);
+        } else {
+            const tx = await tokenManager.addToInsurance(deviceId, ethers.utils.parseUnits(mediatedAmount, 18));
+            await tx.wait();
+            document.getElementById(`insure-${deviceId}`).checked = true;
+            alert('Added to insurance balance successfully!');
+        }
     } catch (error) {
         console.error(error);
         alert('Failed to add to insurance balance.');
@@ -304,19 +469,19 @@ function removeDevice(deviceId) {
 function addDevice() {
     const name = prompt('Enter device name:');
     const id = generateDeviceId();
-    devices.push({ id, name });
+    devices.push({ id, name, chain: activeChain });
     showManageDevices();
 }
 
 function manualInputIMEI() {
     const imei = prompt('Enter IMEI:');
-    devices.push({ id: imei, name: 'Manual Device' });
+    devices.push({ id: imei, name: 'Manual Device', chain: activeChain });
     showManageDevices();
 }
 
 function scanDevice() {
     alert('Scanning device...');
-    devices.push({ id: generateDeviceId(), name: 'Scanned Device' });
+    devices.push({ id: generateDeviceId(), name: 'Scanned Device', chain: activeChain });
     showManageDevices();
 }
 
@@ -611,9 +776,14 @@ function navigateTo(service) {
 async function deposit() {
     const amount = prompt('Enter USD amount to deposit:');
     try {
-        const tx = await financeManager.deposit(ethers.utils.parseUnits(amount, 18));
-        await tx.wait();
-        alert('Deposit successful!');
+        const mediatedAmount = await usdMediator.mediateTransaction('Stellar', activeChain, 'USD', amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Depositing ${mediatedAmount} USD on ${activeChain}`);
+        } else {
+            const tx = await financeManager.deposit(ethers.utils.parseUnits(mediatedAmount, 18));
+            await tx.wait();
+            alert('Deposit successful!');
+        }
         await updateBalances();
     } catch (error) {
         console.error(error);
@@ -628,9 +798,14 @@ async function withdraw() {
     }
     const amount = prompt('Enter USD amount to withdraw:');
     try {
-        const tx = await financeManager.withdraw(ethers.utils.parseUnits(amount, 18));
-        await tx.wait();
-        alert('Withdrawal successful!');
+        const mediatedAmount = await usdMediator.mediateTransaction(activeChain, 'Stellar', 'USD', amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Withdrawing ${mediatedAmount} USD on ${activeChain}`);
+        } else {
+            const tx = await financeManager.withdraw(ethers.utils.parseUnits(mediatedAmount, 18));
+            await tx.wait();
+            alert('Withdrawal successful!');
+        }
         await updateBalances();
     } catch (error) {
         console.error(error);
@@ -672,9 +847,14 @@ async function executeTransfer() {
         return;
     }
     try {
-        const tx = await tokenManager.transfer(asset, recipient, ethers.utils.parseUnits(amount, 18));
-        await tx.wait();
-        alert('Transfer successful!');
+        const mediatedAmount = await usdMediator.mediateTransaction(activeChain, 'Stellar', asset, amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Transferring ${mediatedAmount} ${asset} to ${recipient} on ${activeChain}`);
+        } else {
+            const tx = await tokenManager.transfer(asset, recipient, ethers.utils.parseUnits(mediatedAmount, 18));
+            await tx.wait();
+            alert('Transfer successful!');
+        }
         await updateBalances();
     } catch (error) {
         console.error(error);
@@ -705,9 +885,13 @@ async function playGame(game) {
 
 async function startGame(game, mode) {
     try {
-        const tx = await entertainmentManager.playGame(game, mode);
-        await tx.wait();
-        alert(`Started ${game} in ${mode} mode!`);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Starting ${game} in ${mode} mode on ${activeChain}`);
+        } else {
+            const tx = await entertainmentManager.playGame(game, mode);
+            await tx.wait();
+            alert(`Started ${game} in ${mode} mode!`);
+        }
     } catch (error) {
         console.error(error);
         alert('Failed to start game.');
@@ -716,9 +900,14 @@ async function startGame(game, mode) {
 
 async function watchAds() {
     try {
-        const tx = await entertainmentManager.watchAds();
-        await tx.wait();
-        alert('Ad watched. 50% of revenue added to $GOATE balance.');
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log('Watching ad...');
+            alert('Ad watched. 50% of revenue added to $GOATE balance.');
+        } else {
+            const tx = await entertainmentManager.watchAds();
+            await tx.wait();
+            alert('Ad watched. 50% of revenue added to $GOATE balance.');
+        }
         await updateBalances();
     } catch (error) {
         console.error(error);
@@ -768,9 +957,14 @@ async function stakeAsset(asset) {
         return;
     }
     try {
-        const tx = await financeManager.stake(asset, ethers.utils.parseUnits(amount, 18));
-        await tx.wait();
-        alert(`Staked ${amount} ${asset} for 3 months`);
+        const mediatedAmount = await usdMediator.mediateTransaction('Stellar', activeChain, asset, amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Staking ${mediatedAmount} ${asset} for 3 months on ${activeChain}`);
+        } else {
+            const tx = await financeManager.stake(asset, ethers.utils.parseUnits(mediatedAmount, 18));
+            await tx.wait();
+            alert(`Staked ${mediatedAmount} ${asset} for 3 months`);
+        }
         await updateBalances();
     } catch (error) {
         console.error(error);
@@ -786,9 +980,14 @@ async function farmAsset(asset) {
         return;
     }
     try {
-        const tx = await financeManager.farm(asset, ethers.utils.parseUnits(amount, 18));
-        await tx.wait();
-        alert(`Farming ${amount} ${asset} for 6 months`);
+        const mediatedAmount = await usdMediator.mediateTransaction('Stellar', activeChain, asset, amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Farming ${mediatedAmount} ${asset} for 6 months on ${activeChain}`);
+        } else {
+            const tx = await financeManager.farm(asset, ethers.utils.parseUnits(mediatedAmount, 18));
+            await tx.wait();
+            alert(`Farming ${mediatedAmount} ${asset} for 6 months`);
+        }
         await updateBalances();
     } catch (error) {
         console.error(error);
@@ -804,9 +1003,14 @@ async function provideLiquidity(asset) {
         return;
     }
     try {
-        const tx = await financeManager.provideLiquidity(asset, ethers.utils.parseUnits(amount, 18));
-        await tx.wait();
-        alert(`Providing ${amount} ${asset} liquidity for 9 months`);
+        const mediatedAmount = await usdMediator.mediateTransaction('Stellar', activeChain, asset, amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Providing ${mediatedAmount} ${asset} liquidity for 9 months on ${activeChain}`);
+        } else {
+            const tx = await financeManager.provideLiquidity(asset, ethers.utils.parseUnits(mediatedAmount, 18));
+            await tx.wait();
+            alert(`Providing ${mediatedAmount} ${asset} liquidity for 9 months`);
+        }
         await updateBalances();
     } catch (error) {
         console.error(error);
@@ -823,9 +1027,14 @@ async function dualStake(asset) {
         return;
     }
     try {
-        const tx = await financeManager.dualStake(asset, secondAsset, ethers.utils.parseUnits(amount, 18));
-        await tx.wait();
-        alert(`Dual staking ${amount} ${asset} and ${secondAsset}`);
+        const mediatedAmount = await usdMediator.mediateTransaction('Stellar', activeChain, asset, amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Dual staking ${mediatedAmount} ${asset} and ${secondAsset} on ${activeChain}`);
+        } else {
+            const tx = await financeManager.dualStake(asset, secondAsset, ethers.utils.parseUnits(mediatedAmount, 18));
+            await tx.wait();
+            alert(`Dual staking ${mediatedAmount} ${asset} and ${secondAsset}`);
+        }
         await updateBalances();
     } catch (error) {
         console.error(error);
@@ -841,9 +1050,14 @@ async function lendAsset(asset) {
         return;
     }
     try {
-        const tx = await financeManager.lend(asset, ethers.utils.parseUnits(amount, 18));
-        await tx.wait();
-        alert(`Lending ${amount} ${asset}`);
+        const mediatedAmount = await usdMediator.mediateTransaction('Stellar', activeChain, asset, amount);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Lending ${mediatedAmount} ${asset} on ${activeChain}`);
+        } else {
+            const tx = await financeManager.lend(asset, ethers.utils.parseUnits(mediatedAmount, 18));
+            await tx.wait();
+            alert(`Lending ${mediatedAmount} ${asset}`);
+        }
         await updateBalances();
     } catch (error) {
         console.error(error);
@@ -860,9 +1074,15 @@ async function borrowAsset(asset) {
         return;
     }
     try {
-        const tx = await financeManager.borrow(asset, ethers.utils.parseUnits(amount, 18), ethers.utils.parseUnits(collateral, 18));
-        await tx.wait();
-        alert(`Borrowing ${amount} ${asset} with ${collateral} collateral`);
+        const mediatedAmount = await usdMediator.mediateTransaction('Stellar', activeChain, asset, amount);
+        const mediatedCollateral = await usdMediator.mediateTransaction('Stellar', activeChain, asset, collateral);
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Borrowing ${mediatedAmount} ${asset} with ${mediatedCollateral} collateral on ${activeChain}`);
+        } else {
+            const tx = await financeManager.borrow(asset, ethers.utils.parseUnits(mediatedAmount, 18), ethers.utils.parseUnits(mediatedCollateral, 18));
+            await tx.wait();
+            alert(`Borrowing ${mediatedAmount} ${asset} with ${mediatedCollateral} collateral`);
+        }
         await updateBalances();
     } catch (error) {
         console.error(error);
@@ -872,9 +1092,14 @@ async function borrowAsset(asset) {
 
 async function watchAd(asset) {
     try {
-        const tx = await financeManager.watchAd(asset);
-        await tx.wait();
-        alert('Ad watched. 50% of revenue added to balance.');
+        if (activeChain === 'Pi Network' || activeChain === 'Stellar') {
+            console.log(`Watching ad for ${asset} on ${activeChain}`);
+            alert('Ad watched. 50% of revenue added to balance.');
+        } else {
+            const tx = await financeManager.watchAd(asset);
+            await tx.wait();
+            alert('Ad watched. 50% of revenue added to balance.');
+        }
         await updateBalances();
     } catch (error) {
         console.error(error);
