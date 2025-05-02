@@ -5,9 +5,8 @@ body {
     color: #333;
     background: 
         linear-gradient(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.7)),
-        url('home-bg-clouds.jpg') center/cover no-repeat,
-        url('home-bg-forest.jpg') center/cover no-repeat,
-        #f4f4f4; /* Fallback color */
+        url('GoatePig_Background.jpg') center/cover no-repeat,
+        url('Gerastyx_Background.jpg') center/cover no-repeat,
         #918d8d; /* Fallback color */
     background-blend-mode: overlay;
     min-height: 100vh;
@@ -16,7 +15,6 @@ body {
 /* Ensure text is readable against the background */
 h1, p, button, .service {
     color: black;
-    text-outline: white;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
 }
 
@@ -88,7 +86,7 @@ h1 {
 
 /* Specific styles for Goate Electric button */
 .service.goate-electric {
-    background-image: url('goate-electric-logo.png');
+    background-image: url('zeropointphoneservice_logo.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -115,7 +113,7 @@ h1 {
 
 /* Specific styles for Gerastyx button */
 .service.gerastyx {
-    background-image: url('gerastyx-logo.png');
+    background-image: url('gerastyx_button_logo.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -142,7 +140,7 @@ h1 {
 
 /* Specific styles for GoatePig button */
 .service.goatepig {
-    background-image: url('goatepig-logo.png');
+    background-image: url('goatepig_button_logo.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -197,7 +195,7 @@ footer {
 
 /* Apply background image for Goate Electric modal */
 #feature-modal .modal-content:has(#feature-title:where(:text("Goate Electric"))) {
-    background-image: url('goate-electric-bg.jpg');
+    background-image: url('GoatePig_Background.jpg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -222,7 +220,7 @@ footer {
 
 /* Apply background image for Gerastyx modal */
 #feature-modal .modal-content:has(#feature-title:where(:text("Gerastyx"))) {
-    background-image: url('gerastyx-bg.jpg');
+    background-image: url('Gerastyx_Background.jpg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -247,7 +245,7 @@ footer {
 
 /* Apply background image for GoatePig modal */
 #feature-modal .modal-content:has(#feature-title:where(:text("GoatePig"))) {
-    background-image: url('goatepig-bg.jpg');
+    background-image: url('GoatePig_Background.jpg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -336,4 +334,29 @@ footer {
     width: 30px;
     height: 30px;
     margin-right: 10px;
+}
+
+.games, .goatepig, .devices, .settings {
+    padding: 10px;
+}
+
+.device, .asset-card {
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.add-device {
+    background-color: #28a745;
+    color: white;
+    padding: 10px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.add-device:hover {
+    background-color: #218838;
 }
