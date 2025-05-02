@@ -10,10 +10,18 @@ let userData = {
     card: { number: null, expiration: null, cvc: null },
     phoneNumber: null,
     ssn: null,
-    username: null
+    username: null,
+    address: null
 };
 let devices = [];
 let isNewDevice = false;
+
+let provider;
+let signer;
+let energyManager;
+let tokenManager;
+let entertainmentManager;
+let financeManager;
 
 window.onload = async () => {
     await Pi.init({ version: "2.0" });
@@ -24,7 +32,30 @@ window.onload = async () => {
     document.getElementById('sign-in-pi').onclick = signInWithPi;
     document.getElementById('sign-in-google').onclick = signInWithGoogle;
     document.getElementById('sign-in-apple').onclick = signInWithApple;
+
+    await initWeb3();
 };
+
+async function initWeb3() {
+    if (window.ethereum) {
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        signer = provider.getSigner();
+
+        // Initialize contracts (replace with actual deployed addresses)
+        const energyManagerAddress = "YOUR_ENERGY_MANAGER_ADDRESS";
+        const tokenManagerAddress = "YOUR_TOKEN_MANAGER_ADDRESS";
+        const entertainmentManagerAddress = "YOUR_ENTERTAINMENT_MANAGER_ADDRESS";
+        const financeManagerAddress = "YOUR_FINANCE_MANAGER_ADDRESS";
+
+        energyManager = new ethers.Contract(energyManagerAddress, EnergyManagerABI, signer);
+        tokenManager = new ethers.Contract(tokenManagerAddress, TokenManagerABI, signer);
+        entertainmentManager = new ethers.Contract(entertainmentManagerAddress, EntertainmentManagerABI, signer);
+        financeManager = new ethers.Contract(financeManagerAddress, FinanceManagerABI, signer);
+    } else {
+        alert('Please install MetaMask to use this feature.');
+    }
+}
 
 function showLoginModal() {
     if (currentUser) {
@@ -62,13 +93,11 @@ function createPiAccount() {
 }
 
 function signInWithGoogle() {
-    // Mock Google Sign-In
     userData.email = prompt('Enter Google email:');
     completeLogin('google', userData.email);
 }
 
 function signInWithApple() {
-    // Mock Apple Sign-In
     userData.appleId = prompt('Enter Apple ID:');
     completeLogin('apple', userData.appleId);
 }
@@ -99,7 +128,6 @@ async function completeLogin(method, identifier) {
         }
     }
 
-    // Generate bank and card details
     if (!userData.bank.accountNumber) {
         userData.bank.accountNumber = generateBankAccountNumber();
         userData.bank.routingNumber = generateRoutingNumber();
@@ -108,7 +136,6 @@ async function completeLogin(method, identifier) {
         userData.card = generateCardDetails();
     }
 
-    // Prompt for additional details
     if (!userData.phoneNumber) {
         userData.phoneNumber = prompt('Enter phone number:');
     }
@@ -121,7 +148,6 @@ async function completeLogin(method, identifier) {
 }
 
 async function verifyPassword(identifier, password) {
-    // Mock password verification (replace with actual backend call)
     return password === userPassword;
 }
 
@@ -145,14 +171,13 @@ function generateCardDetails() {
 async function updateBalances() {
     if (!currentUser) return;
     for (const asset of supportedAssets) {
-        const balance = await getBalance(asset);
-        document.getElementById(`${asset.toLowerCase()}-balance`)?.textContent = balance.toFixed(2);
+        try {
+            const balance = await tokenManager.getBalance(asset);
+            document.getElementById(`${asset.toLowerCase()}-balance`)?.textContent = ethers.utils.formatUnits(balance, 18);
+        } catch (error) {
+            console.error(`Error fetching balance for ${asset}:`, error);
+        }
     }
-}
-
-async function getBalance(asset) {
-    // Mock balance fetch
-    return Math.random() * 100;
 }
 
 async function connectDevice() {
@@ -164,8 +189,13 @@ async function connectDevice() {
     const deviceId = localStorage.getItem('deviceId') || generateDeviceId();
     localStorage.setItem('deviceId', deviceId);
 
-    // Sync device with QuantumZeropointDataStorage
-    await syncDeviceData(deviceId);
+    try {
+        await energyManager.registerDevice(deviceId);
+    } catch (error) {
+        console.error('Error registering device:', error);
+        alert('Failed to register device.');
+        return;
+    }
 
     document.getElementById('connect-device').textContent = 'deviceConnected';
     setTimeout(() => {
@@ -178,11 +208,6 @@ async function connectDevice() {
 
 function generateDeviceId() {
     return 'DEV' + Math.random().toString(36).substr(2, 9);
-}
-
-async function syncDeviceData(deviceId) {
-    // Mock QuantumZeropointDataStorage sync
-    console.log(`Syncing device ${deviceId} with 800M data points`);
 }
 
 function showManageDevices() {
@@ -222,25 +247,53 @@ function showManageDevices() {
     modal.style.display = 'flex';
 }
 
-function consumeZPE(deviceId) {
-    const amount = document.getElementById(`zpe-${deviceId}`).value;
-    console.log(`Consuming ${amount} $ZPE for ${deviceId}`);
+async function consumeZPE(deviceId) {
+    const amount = document.getElementById(`zpe-${device.id}`).value;
+    try {
+        const tx = await energyManager.consumeEnergy(deviceId, ethers.utils.parseUnits(amount, 0));
+        await tx.wait();
+        alert('ZPE consumed successfully!');
+    } catch (error) {
+        console.error(error);
+        alert('Failed to consume ZPE.');
+    }
 }
 
-function consumeZPWP(deviceId) {
-    const amount = document.getElementById(`zpwp-${deviceId}`).value;
-    console.log(`Consuming ${amount} $ZPWP for ${deviceId}`);
+async function consumeZPWP(deviceId) {
+    const amount = document.getElementById(`zpwp-${device.id}`).value;
+    try {
+        const tx = await energyManager.consumeEnergy(deviceId, ethers.utils.parseUnits(amount, 0));
+        await tx.wait();
+        alert('ZPWP consumed successfully!');
+    } catch (error) {
+        console.error(error);
+        alert('Failed to consume ZPWP.');
+    }
 }
 
-function consumeToDevice(asset, deviceId) {
+async function consumeToDevice(asset, deviceId) {
     const amount = document.getElementById(`${asset.toLowerCase()}-device-${deviceId}`).value;
-    console.log(`Consuming ${amount} ${asset} to ${deviceId}`);
+    try {
+        const tx = await energyManager.consumeEnergy(deviceId, ethers.utils.parseUnits(amount, 0));
+        await tx.wait();
+        alert(`${asset} consumed successfully!`);
+    } catch (error) {
+        console.error(error);
+        alert(`Failed to consume ${asset}.`);
+    }
 }
 
-function addToInsurance(deviceId) {
+async function addToInsurance(deviceId) {
     const amount = document.getElementById(`zpe-insurance-${deviceId}`).value;
-    console.log(`Adding ${amount} $ZPE to insurance for ${deviceId}`);
-    document.getElementById(`insure-${deviceId}`).checked = true;
+    try {
+        const tx = await tokenManager.addToInsurance(deviceId, ethers.utils.parseUnits(amount, 18));
+        await tx.wait();
+        document.getElementById(`insure-${deviceId}`).checked = true;
+        alert('Added to insurance balance successfully!');
+    } catch (error) {
+        console.error(error);
+        alert('Failed to add to insurance balance.');
+    }
 }
 
 function removeDevice(deviceId) {
@@ -262,7 +315,6 @@ function manualInputIMEI() {
 }
 
 function scanDevice() {
-    // Mock NFC/QR scan
     alert('Scanning device...');
     devices.push({ id: generateDeviceId(), name: 'Scanned Device' });
     showManageDevices();
@@ -322,6 +374,7 @@ function updateBank() {
         alert('Invalid PIN.');
         return;
     }
+    const content = document.getElementById('feature-content');
     content.innerHTML = `
         <button onclick="removeBank()">Remove Bank</button>
         <button onclick="replaceBank()">Replace Bank</button>
@@ -555,17 +608,34 @@ function navigateTo(service) {
     modal.style.display = 'flex';
 }
 
-function deposit() {
+async function deposit() {
     const amount = prompt('Enter USD amount to deposit:');
-    console.log(`Depositing ${amount} USD`);
+    try {
+        const tx = await financeManager.deposit(ethers.utils.parseUnits(amount, 18));
+        await tx.wait();
+        alert('Deposit successful!');
+        await updateBalances();
+    } catch (error) {
+        console.error(error);
+        alert('Deposit failed.');
+    }
 }
 
-function withdraw() {
+async function withdraw() {
     if (!userData.ssn && prompt('Enter amount:') > 1000000) {
         alert('Accounts without SSN are limited to $1M daily bank withdrawals.');
         return;
     }
-    console.log('Withdrawing USD');
+    const amount = prompt('Enter USD amount to withdraw:');
+    try {
+        const tx = await financeManager.withdraw(ethers.utils.parseUnits(amount, 18));
+        await tx.wait();
+        alert('Withdrawal successful!');
+        await updateBalances();
+    } catch (error) {
+        console.error(error);
+        alert('Withdrawal failed.');
+    }
 }
 
 function swap() {
@@ -576,7 +646,7 @@ function consume() {
     showManageDevices();
 }
 
-function transfer() {
+async function transfer() {
     const modal = document.getElementById('feature-modal');
     const content = document.getElementById('feature-content');
     content.innerHTML = `
@@ -592,7 +662,7 @@ function transfer() {
     `;
 }
 
-function executeTransfer() {
+async function executeTransfer() {
     const asset = document.getElementById('transfer-asset').value;
     const amount = document.getElementById('transfer-amount').value;
     const recipient = document.getElementById('transfer-recipient').value;
@@ -601,14 +671,18 @@ function executeTransfer() {
         alert('Invalid PIN.');
         return;
     }
-    console.log(`Transferring ${amount} ${asset} to ${recipient}`);
+    try {
+        const tx = await tokenManager.transfer(asset, recipient, ethers.utils.parseUnits(amount, 18));
+        await tx.wait();
+        alert('Transfer successful!');
+        await updateBalances();
+    } catch (error) {
+        console.error(error);
+        alert('Transfer failed.');
+    }
 }
 
-function stake() {
-    navigateTo('goatepig');
-}
-
-function playGame(game) {
+async function playGame(game) {
     const pin = prompt('Enter 4-digit PIN:');
     if (pin !== userPin) {
         alert('Invalid PIN.');
@@ -629,14 +703,27 @@ function playGame(game) {
     `;
 }
 
-function startGame(game, mode) {
-    console.log(`Starting ${game} in ${mode} mode`);
+async function startGame(game, mode) {
+    try {
+        const tx = await entertainmentManager.playGame(game, mode);
+        await tx.wait();
+        alert(`Started ${game} in ${mode} mode!`);
+    } catch (error) {
+        console.error(error);
+        alert('Failed to start game.');
+    }
 }
 
-function watchAds() {
-    // Mock ad watch
-    console.log('Watching ad...');
-    alert('Ad watched. 50% of revenue added to $GOATE balance.');
+async function watchAds() {
+    try {
+        const tx = await entertainmentManager.watchAds();
+        await tx.wait();
+        alert('Ad watched. 50% of revenue added to $GOATE balance.');
+        await updateBalances();
+    } catch (error) {
+        console.error(error);
+        alert('Failed to watch ad.');
+    }
 }
 
 function zeropointHolographicView() {
@@ -663,49 +750,71 @@ function checkAvailable() {
 
 function noHarm() {
     if (confirm('Confirm with 4-digit PIN:')) {
-        // Mock 911 call
         console.log('Calling 911 for patrol...');
     }
 }
 
 function callPolice() {
     if (confirm('Confirm with 4-digit PIN:')) {
-        // Mock 911 call
         console.log('Calling 911 for armed officers...');
     }
 }
 
-function stakeAsset(asset) {
+async function stakeAsset(asset) {
     const amount = document.getElementById(`stake-${asset}`).value;
     const pin = prompt('Enter 4-digit PIN:');
     if (pin !== userPin) {
         alert('Invalid PIN.');
         return;
     }
-    console.log(`Staking ${amount} ${asset} for 3 months`);
+    try {
+        const tx = await financeManager.stake(asset, ethers.utils.parseUnits(amount, 18));
+        await tx.wait();
+        alert(`Staked ${amount} ${asset} for 3 months`);
+        await updateBalances();
+    } catch (error) {
+        console.error(error);
+        alert('Staking failed.');
+    }
 }
 
-function farmAsset(asset) {
+async function farmAsset(asset) {
     const amount = document.getElementById(`farm-${asset}`).value;
     const pin = prompt('Enter 4-digit PIN:');
     if (pin !== userPin) {
         alert('Invalid PIN.');
         return;
     }
-    console.log(`Farming ${amount} ${asset} for 6 months`);
+    try {
+        const tx = await financeManager.farm(asset, ethers.utils.parseUnits(amount, 18));
+        await tx.wait();
+        alert(`Farming ${amount} ${asset} for 6 months`);
+        await updateBalances();
+    } catch (error) {
+        console.error(error);
+        alert('Farming failed.');
+    }
 }
 
-function provideLiquidity(asset) {
+async function provideLiquidity(asset) {
     const amount = document.getElementById(`lp-${asset}`).value;
     const pin = prompt('Enter 4-digit PIN:');
     if (pin !== userPin) {
         alert('Invalid PIN.');
         return;
     }
-    console.log(`Providing ${amount} ${asset} liquidity for 9 months`);
+    try {
+        const tx = await financeManager.provideLiquidity(asset, ethers.utils.parseUnits(amount, 18));
+        await tx.wait();
+        alert(`Providing ${amount} ${asset} liquidity for 9 months`);
+        await updateBalances();
+    } catch (error) {
+        console.error(error);
+        alert('Liquidity provision failed.');
+    }
 }
 
-function dualStake(asset) {
+async function dualStake(asset) {
     const amount = document.getElementById(`dual-${asset}`).value;
     const secondAsset = document.getElementById(`dual-asset-${asset}`).value;
     const pin = prompt('Enter 4-digit PIN:');
@@ -713,20 +822,36 @@ function dualStake(asset) {
         alert('Invalid PIN.');
         return;
     }
-    console.log(`Dual staking ${amount} ${asset} and ${secondAsset}`);
+    try {
+        const tx = await financeManager.dualStake(asset, secondAsset, ethers.utils.parseUnits(amount, 18));
+        await tx.wait();
+        alert(`Dual staking ${amount} ${asset} and ${secondAsset}`);
+        await updateBalances();
+    } catch (error) {
+        console.error(error);
+        alert('Dual staking failed.');
+    }
 }
 
-function lendAsset(asset) {
+async function lendAsset(asset) {
     const amount = document.getElementById(`lend-${asset}`).value;
     const pin = prompt('Enter 4-digit PIN:');
     if (pin !== userPin) {
         alert('Invalid PIN.');
         return;
     }
-    console.log(`Lending ${amount} ${asset}`);
+    try {
+        const tx = await financeManager.lend(asset, ethers.utils.parseUnits(amount, 18));
+        await tx.wait();
+        alert(`Lending ${amount} ${asset}`);
+        await updateBalances();
+    } catch (error) {
+        console.error(error);
+        alert('Lending failed.');
+    }
 }
 
-function borrowAsset(asset) {
+async function borrowAsset(asset) {
     const collateral = document.getElementById(`collateral-${asset}`).value;
     const amount = document.getElementById(`borrow-${asset}`).value;
     const pin = prompt('Enter 4-digit PIN:');
@@ -734,46 +859,25 @@ function borrowAsset(asset) {
         alert('Invalid PIN.');
         return;
     }
-    console.log(`Borrowing ${amount} ${asset} with ${collateral} collateral`);
-}
-
-function watchAd(asset) {
-    console.log(`Watching ad for ${asset}`);
-    alert('Ad watched. 50% of revenue added to balance.');
-}
-
-const { ethers } = require('ethers'); // Add ethers.js to your project
-
-// Initialize Web3 provider (e.g., MetaMask)
-let provider;
-let signer;
-let energyManager;
-
-async function initWeb3() {
-    if (window.ethereum) {
-        provider = new ethers.providers.Web3Provider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        signer = provider.getSigner();
-        const energyManagerAddress = "YOUR_ENERGY_MANAGER_ADDRESS";
-        const energyManagerABI = [/* ABI from EnergyManager.sol */];
-        energyManager = new ethers.Contract(energyManagerAddress, energyManagerABI, signer);
-    } else {
-        alert('Please install MetaMask to use this feature.');
-    }
-}
-
-// Update consume function to call EnergyManager.sol
-async function consume() {
-    await initWeb3();
-    const deviceId = prompt('Enter device ID:');
-    const amount = prompt('Enter energy amount to consume (kWh):');
     try {
-        const tx = await energyManager.consumeEnergy(deviceId, ethers.utils.parseUnits(amount, 0));
+        const tx = await financeManager.borrow(asset, ethers.utils.parseUnits(amount, 18), ethers.utils.parseUnits(collateral, 18));
         await tx.wait();
-        alert('Energy consumed successfully!');
+        alert(`Borrowing ${amount} ${asset} with ${collateral} collateral`);
+        await updateBalances();
     } catch (error) {
         console.error(error);
-        alert('Failed to consume energy.');
+        alert('Borrowing failed.');
     }
-    showManageDevices();
+}
+
+async function watchAd(asset) {
+    try {
+        const tx = await financeManager.watchAd(asset);
+        await tx.wait();
+        alert('Ad watched. 50% of revenue added to balance.');
+        await updateBalances();
+    } catch (error) {
+        console.error(error);
+        alert('Failed to watch ad.');
+    }
 }
